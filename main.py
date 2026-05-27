@@ -2,10 +2,15 @@ import os
 import shutil
 import subprocess
 import telebot
-from PIL import ImageGrab  # Screen capture karne ke liye
+import requests
+from PIL import ImageGrab
 
-# 🔥 SECURE CONFIGURATION SETUP
+# 🔥 CONFIGURATION SETUP
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL_NAME = "friday"  # Jo naam aapne create kiya tha
+
+print("🤖 Starting Friday System Core...")
 
 try:
     bot = telebot.TeleBot(BOT_TOKEN)
@@ -19,106 +24,103 @@ except Exception as e:
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome = (
-        "⚡ *FRIDAY ULTIMATE SYSTEM CORE ONLINE* ⚡\n\n"
-        "Oye bhai! Laptop ki aseemit shaktiyan ab aapke haath mein hain. Ye rahe direct execution commands:\n\n"
-        "📸 /screenshot - Laptop ki live screen dekhne ke liye.\n"
-        "🔍 /find [filename] - Poore laptop mein koi bhi file dhoondh kar mangwane ke liye.\n"
-        "📊 /status - Storage logs aur health check karne ke liye.\n"
-        "💻 /cmd [command] - Direct cmd execute karne ke liye.\n"
-        "😴 /sleep - Laptop ko turant sleep mode mein daalne ke liye.\n"
-        "🛑 /shutdown - Laptop ko band karne ke liye."
+        "⚡ *FRIDAY OLLAMA SYSTEM CORE ONLINE* ⚡\n\n"
+        "Oye bhai! Laptop ki shaktiyan aur Ollama AI ab dono active hain.\n"
+        "Normal message bhejoge toh AI reply dega, baki commands ye rahe:\n\n"
+        "📸 /screenshot - Live screen snap.\n"
+        "🔍 /find [filename] - Search files.\n"
+        "📊 /status - Disk space status.\n"
+        "💻 /cmd [command] - Run cmd command.\n"
+        "😴 /sleep - Put laptop to sleep.\n"
+        "🛑 /shutdown - Close laptop."
     )
     bot.reply_to(message, welcome, parse_mode="Markdown")
 
 # 2. Live Screenshot Tool
 @bot.message_handler(commands=['screenshot'])
 def take_screenshot(message):
-    bot.reply_to(message, "📸 *Taking live snapshot of your desktop...*", parse_mode="Markdown")
+    bot.reply_to(message, "📸 *Taking live snapshot...*", parse_mode="Markdown")
     try:
-        # Screen capture karke local save karna
         screenshot_path = "friday_snap.png"
         img = ImageGrab.grab()
         img.save(screenshot_path)
-        
-        # Phone par send karna
         with open(screenshot_path, 'rb') as photo:
-            bot.send_photo(message.chat.id, photo, caption="Le bhai, tere laptop ki live screen! 😎")
-        
-        # Cleanup
+            bot.send_photo(message.chat.id, photo, caption="Le bhai screen! 😎")
         os.remove(screenshot_path)
     except Exception as e:
         bot.reply_to(message, f"❌ Screenshot failed: {e}")
 
-# 3. Deep File Hunter Tool (Searches all directories)
+# 3. Deep File Hunter Tool
 @bot.message_handler(commands=['find'])
 def find_file(message):
     filename = message.text[5:].strip()
     if not filename:
-        bot.reply_to(message, "Bhai, file ka naam toh batao! Example: /find resume.pdf")
+        bot.reply_to(message, "Bhai, file name? Example: /find photo.jpg")
         return
-        
-    bot.reply_to(message, f"🔍 *Searching for '{filename}' inside C:/Users folder...*", parse_mode="Markdown")
-    
-    # Dell Vostro user directory setup
+    bot.reply_to(message, f"🔍 *Searching for '{filename}'...*", parse_mode="Markdown")
     search_root = os.path.expanduser("~") 
     found_files = []
-    
-    # Walking through system tree structure locally
     for root, dirs, files in os.walk(search_root):
         if filename in files:
             found_files.append(os.path.join(root, filename))
-            if len(found_files) >= 3: # Max 3 results to avoid flooding
-                break
-                
+            if len(found_files) >= 3: break
     if not found_files:
-        bot.reply_to(message, "❌ Bhai, pure system mein aisi koi file nahi mili!")
+        bot.reply_to(message, "❌ File nahi mili!")
         return
-        
     for filepath in found_files:
         try:
             bot.reply_to(message, f"📁 File mili! Sending: `{filepath}`", parse_mode="Markdown")
-            with open(filepath, 'rb') as doc:
-                bot.send_document(message.chat.id, doc)
-        except Exception as e:
-            bot.reply_to(message, f"⚠️ File size badi hai ya access locked hai. Path: `{filepath}`", parse_mode="Markdown")
+            with open(filepath, 'rb') as doc: bot.send_document(message.chat.id, doc)
+        except:
+            bot.reply_to(message, f"⚠️ Size issue ya access locked. Path: `{filepath}`", parse_mode="Markdown")
 
 # 4. Storage Controller
 @bot.message_handler(commands=['status'])
 def check_status(message):
     total, used, free = shutil.disk_usage("/")
-    status_text = (
-        "📊 *LOCAL DRIVES ANALYSIS:*\n\n"
-        f"💾 Total: {total // (2**30)} GB\n"
-        f"🟢 Free: {free // (2**30)} GB\n"
-        f"🔴 Used: {used // (2**30)} GB"
-    )
+    status_text = f"📊 *STORAGE ANALYTICS:*\n\n💾 Total: {total // (2**30)} GB\n🟢 Free: {free // (2**30)} GB\n🔴 Used: {used // (2**30)} GB"
     bot.reply_to(message, status_text, parse_mode="Markdown")
 
 # 5. Native Command Trigger
 @bot.message_handler(commands=['cmd'])
 def execute_cmd(message):
     command = message.text[5:].strip()
-    if not command:
-        bot.reply_to(message, "Command missing! Example: /cmd dir")
-        return
+    if not command: return bot.reply_to(message, "Command missing!")
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
         output = result.stdout if result.stdout else result.stderr
         bot.reply_to(message, f"💻 *Output:*\n```\n{output[:3000]}\n```", parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error: {str(e)}")
+    except Exception as e: bot.reply_to(message, f"❌ Error: {str(e)}")
 
 # 6. Windows Sleep Matrix
 @bot.message_handler(commands=['sleep'])
 def system_sleep(message):
-    bot.reply_to(message, "😴 Laptop ko sulane ja raha hoon, bye bhai!")
-    # Windows system command to trigger sleep state native utility
+    bot.reply_to(message, "😴 Laptop sone ja raha hai, bye bhai!")
     os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
 
 # 7. Ultimate Shutdown Trigger
 @bot.message_handler(commands=['shutdown'])
 def system_shutdown(message):
-    bot.reply_to(message, "⚠️ *🚨 CRITICAL ORDER RECEIVED: Shutting down the laptop in 10 seconds!*", parse_mode="Markdown")
+    bot.reply_to(message, "⚠️ *🚨 Shutting down in 10 seconds!*")
     os.system("shutdown /s /t 10")
 
-bot.infinity_polling()
+# 🤖 8. OLLAMA OFFLINE AI CHAT HANDLER (Normal text messages ke liye)
+@bot.message_handler(func=lambda message: True)
+def ai_chat(message):
+    bot.send_chat_action(message.chat.id, 'typing')
+    payload = {
+        "model": MODEL_NAME,
+        "prompt": message.text,
+        "stream": False
+    }
+    try:
+        response = requests.post(OLLAMA_URL, json=payload)
+        ai_reply = response.json().get('response', 'Bhai, model ne khali jawab diya.')
+    except Exception as e:
+        ai_reply = f"⚠️ Ollama Connect Error: {str(e)}"
+        
+    bot.reply_to(message, ai_reply)
+
+# 🔥 UNLIMITED POLLING - SABSE LAST ME!
+print("🚀 Friday Bot Fully Operational! Press Ctrl+C to stop.")
+bot.infinity_polling(timeout=20, long_polling_timeout=10)
